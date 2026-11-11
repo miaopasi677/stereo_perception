@@ -1,0 +1,4 @@
+# Optional: used only by prepare_model.py, never in the frame processing loop.
+# These are the upstream forks requested by ultralytics/nn/text_model.py.
+git+https://github.com/ultralytics/CLIP.git@7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40
+git+https://github.com/ultralytics/mobileclip.git@822afa7a8c4c14547e3bf1d325b8ea8bc3c0470c

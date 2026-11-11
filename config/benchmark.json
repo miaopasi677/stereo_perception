@@ -1,0 +1,22 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "hfov_deg": 60.0,
+  "baseline_m": 0.06,
+  "min_focus_distance_m": 0.3,
+  "roi_area_ratio": 0.01,
+  "min_valid_disparity_px": 0.5,
+  "target_rel_error": 0.05,
+  "max_targets": 3,
+  "max_detections": 100,
+  "confidence": 0.25,
+  "iou": 0.5,
+  "coarse_scale": 0.25,
+  "coarse_max_disparity": 128,
+  "roi_max_disparity": 384,
+  "opencv_threads": 4,
+  "torch_threads": 4,
+  "filter_frames": 5,
+  "mask_format": "rle",
+  "model": "models/yoloe-v8s-coco80.pt"
+}

@@ -1,0 +1,88 @@
+Windows 双目视觉 M0 帧率评估
+
+本项目按提供的开发文档开展 M0，不是已经完成 M1-M6 的产品交付。
+以当前 RTX 3080 Laptop 16GB 为实测设备，不将结果直接换算为 5060/5060Ti。
+本次实测结论：results/m0_suite/实测结论.txt；逐组对比：results/m0_suite/comparison.txt。
+历史编号01–07使用原版full掩码后处理，08起的优化场景以报告中的mask_processing字段为准。
+
+一、启动
+在本目录打开 PowerShell：
+  .\.venv\Scripts\python.exe benchmark.py --probe
+  .\.venv\Scripts\python.exe run_suite.py --seconds 60
+也可以双击 run_benchmark.cmd，运行 60 秒的开启测距/并行粗匹配测试。
+首次在另一台机器运行：先运行 setup_windows.ps1（需 uv）。本目录已配置独立 .venv。
+若官方下载受网络影响，可为当前终端设置已有代理的 HTTPS_PROXY；不需修改系统代理/驱动。
+CUDA 11.8 运行时随 PyTorch 安装。本安装不包含完整 CUDA 编译工具链。
+
+二、常用命令
+识别+分割：
+  .\.venv\Scripts\python.exe benchmark.py --mode detection --seconds 60
+识别+分割+相对距离：
+  .\.venv\Scripts\python.exe benchmark.py --mode perception --seconds 60
+增加中心 1% ROI 测距，CPU/GPU 重叠：
+  .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --seconds 60
+512 输入对照：
+  .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --imgsz 512 --seconds 60
+多物体人工压力图（保留全部检测和全分辨率掩码输出）：
+  .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --left data/stress_left.png --right data/stress_right.png --synthetic-pair --mask-processing bounded --seconds 60
+同场景原始慢速掩码实现对照：将上条命令的 bounded 改为 full。
+默认 bounded 只缩小掩码统计/RLE扫描范围，不裁掉物体，不降低输出掩码分辨率。
+三个合成 ROI 分区的测距负载（不是三个真实目标验收）：
+  .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --stress-three --seconds 60
+持续 30 分钟的吞吐稳定性测试（仍需真实相机/场景与标定才能完整验收）：
+  .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --seconds 1800
+单元测试（从本目录运行）：
+  .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+
+三、更换真实输入
+预校正左右图：
+  .\.venv\Scripts\python.exe benchmark.py --source images --left C:\data\left.png --right C:\data\right.png --mode ranging
+双视频（尺寸、帧率相同且帧索引配对，视频同步由使用者提供）：
+  .\.venv\Scripts\python.exe benchmark.py --source videos --left C:\data\left.mp4 --right C:\data\right.mp4 --seconds 60
+两路 Windows DirectShow 相机：
+  .\.venv\Scripts\python.exe benchmark.py --source camera --left 0 --right 1 --capture-fps 15 --seconds 60
+只有显式 camera 模式才会打开相机。内置 RGB 与 IR 摄像头不能当作已标定同型号双目。
+相机适配器是有界队列+主机到达时间近似同步，不保证曝光同步；掉线报告 camera_error，M0 不自动重连。
+标定文件：--calibration 路径.npz；字段 K1,D1,K2,D2,R,T（米），image_size=[宽,高]。
+使用标定时配置及输入尺寸必须与 image_size 一致，仅支持水平双目。
+未传标定时按 config/benchmark.json 名义内参和基线运行，结果距离不是真实米制测量。
+
+四、输出与统计
+results/每个运行目录：
+  summary.json / report.txt：FPS、P50/P95/P99、最差连续1秒完成数、配置和范围限制。
+  timings.csv：每帧完整完成延迟、阶段耗时、物体与测距目标数量、JSON体积。
+  frames.jsonl：每完成一帧写出一条识别/测距 JSON。
+  telemetry.json：GPU 温度、SM频率、占用、功耗及进程内存的采样；新测试还含系统/进程CPU占用（首个CPU样本无基线，仅供参考）。
+  environment.json：实际 Python/PyTorch/CUDA/OpenCV/显卡信息。
+套件完成后还生成 comparison.txt / comparison.csv / comparison.json。
+实际 FPS = 完成帧数 / 完整墙钟时间，非瞬时FPS算术平均。预热和模型加载不计入稳态。
+最差1秒是任意滑动窗口，不只是整数秒分桶。
+时延 CSV 包含 JSON 序列化与 flush（到操作系统缓冲区，不是强制落盘）。
+帧 JSON 中 latency_ms 截止到序列化之前，完整时延以 timings.csv 为准。
+若启用相机，camera_latency_ms 从较早的一路主机到达时间算起，不是传感器曝光时间。
+并行测试中检测和粗立体阶段有重叠，不能简单相加推算总时延。
+
+五、已实现边界
+YOLOE-v8-S 小型模型，原始开放词表权重经 Apple MobileCLIP-B(LT) 一次性编码 COCO 80 类；CUDA FP16/FP32 检测与分割，不在每帧做文本编码。
+离线推理权重：models/yoloe-v8s-coco80.pt；实际词表保存在 config/vocab.txt 及各次报告元数据。
+更换类别：准备每行一个英文类别的 UTF-8 文本，运行 prepare_model.py --vocab 文件路径 --output 新权重路径，再在 benchmark.py 使用 --model 新权重路径。不会自动覆盖原模型。
+CPU 双目校正/缩放、降分辨率 SGBM、全分辨率中心 ROI SGBM、简单 IoU ID、方位、相对距离、RLE。
+RLE 为未压缩计数，order=C 行优先，不是压缩 COCO RLE；输出中注明格式。
+立体无效不能判断是真正远处还是低纹理，因此返回 unknown/null，而非假定 far。
+ROI 最多三个物体/unknown 视差簇、滑动中值、纹理/超量程/近距标记、启停控制。
+ROI 不确定度仅是启发式，不能替代实物真值精度测试。
+M0 尚未实现：C++/TensorRT、自定义 GPU SGM、模型方案B对比、标定采集工具、ROS2、掉线自动重连等。
+默认公开 Teddy 图只有 450×375，缩放到 1920×1080 测计算负载；不能代表原生1080p动态场景。
+make_stress_pair.py 可利用随 Ultralytics 包提供的 bus.jpg 生成三拼多物体图和人为平移右图。这仅用于加大掩码/JSON负载；运行时必须使用 --synthetic-pair 标记，绝不视为真实双目采集。
+正式验收必须补充真实双目录像、标定、不同场景，以及两种模式各30分钟持续测试。
+
+六、可选本机 ZeroMQ
+  .\.venv\Scripts\python.exe benchmark.py --mode ranging --seconds 1800 --pub tcp://127.0.0.1:5556 --control tcp://127.0.0.1:5557
+PUB 每帧发布 JSON，REQ/REP 控制：
+  {"cmd":"ranging","action":"start"}
+  {"cmd":"ranging","action":"stop"}
+  {"cmd":"status"}
+命令在帧边界处理。测量期间发生启停切换时，报告会标记 mixed_control_states，不能当作单一测距模式成绩。
+默认不打开端口；仅接受回环地址。PUB 测量排入发送队列，不包含订阅方收包。
+
+模型出处与许可在 data/sources.json；本测试使用开源权重，商用分发前应审查 AGPL-3.0 义务。

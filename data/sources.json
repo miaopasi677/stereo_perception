@@ -1,0 +1,36 @@
+{
+  "stereo_pair": {
+    "dataset": "Middlebury Stereo 2003 - Teddy",
+    "left_url": "https://vision.middlebury.edu/stereo/data/scenes2003/newdata/teddy/im2.png",
+    "right_url": "https://vision.middlebury.edu/stereo/data/scenes2003/newdata/teddy/im6.png",
+    "purpose": "Static image compute workload only; dataset calibration not imported; not native 1080p input"
+  },
+  "weights": {
+    "publisher": "jameslahm (YOLOE author)",
+    "repository": "https://huggingface.co/jameslahm/yoloe",
+    "revision": "b584da188a198a2e6aa0e013d3fef6d55b212603",
+    "filename": "yoloe-v8s-seg.pt",
+    "license": "AGPL-3.0; check commercial distribution requirements separately"
+  },
+  "prepared_model": {
+    "filename": "models/yoloe-v8s-coco80.pt",
+    "method": "Local one-time text encoding of COCO80 class names into the original YOLOE open-vocabulary checkpoint; NOT COCO fine-tuning",
+    "vocabulary": "config/vocab.txt"
+  },
+  "text_encoder": {
+    "publisher": "Apple",
+    "filename": "mobileclip_blt.pt",
+    "url": "https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_blt.pt",
+    "purpose": "One-time native MobileCLIP-B(LT) text embedding; excluded from per-frame timing"
+  },
+  "dense_fixture": {
+    "source": "Installed ultralytics/assets/bus.jpg",
+    "generation": "Three resized photo panels, right image artificially shifted by 48 pixels",
+    "metadata": "data/stress_source.json",
+    "purpose": "Segmentation/mask/JSON compute stress only; NOT physical stereo or accuracy ground truth"
+  },
+  "references": [
+    "https://docs.ultralytics.com/models/yoloe/",
+    "https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html"
+  ]
+}

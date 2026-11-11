@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.runtime/
+.wheels/
+*.pyc
+models/*.pt
+models/*.ts
+models/*.onnx
+models/*.engine
+Ultralytics/
+data/*.png
+results/

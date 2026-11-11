@@ -1,0 +1,6 @@
+{
+  "kind": "synthetic_three_panel_bus_scene",
+  "original_photo": "C:\\file\\project\\stereo_perception\\.venv\\lib\\site-packages\\ultralytics\\assets\\bus.jpg",
+  "right_image": "artificial horizontal 48px shift",
+  "purpose": "multi-object segmentation/mask/JSON load only; NOT a real stereo scene or accuracy validation"
+}
