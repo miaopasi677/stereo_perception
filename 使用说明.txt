@@ -23,6 +23,17 @@ CUDA 11.8 运行时随 PyTorch 安装。本安装不包含完整 CUDA 编译工�
   .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --seconds 60
 512 输入对照：
   .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --imgsz 512 --seconds 60
+YOLO-World + MobileSAM 路线（客户指定模型，需求第8条；检测出框+类别，MobileSAM补全分辨率掩码）：
+  首次准备权重：download_assets.py 会下载 yolov8s-worldv2.pt 与 mobile_sam.pt；
+  再运行 prepare_world_model.py 离线固化 COCO80 类别（首次下载 CLIP ViT-B/32，一次性，需代理时设 HTTPS_PROXY）。
+  .\.venv\Scripts\python.exe benchmark.py --detector yoloworld --mode ranging --parallel-stereo --seconds 60
+  默认 YOLOE 单模型路线仍可用：--detector yoloe（默认）。两条路线共用同一套立体/测距/JSON/统计口径，可直接对比。
+  两条路线都输出具体物体类别（cls 字段，如 person/bus/teddy bear），不是占位编号。
+  自定义业务类别：prepare_world_model.py --vocab 类别.txt --output 新权重.pt，再 --world-model 新权重.pt。
+  注意：MobileSAM 的 TinyViT 编码器在 FP16 下有精度类型问题，本实现固定 FP32 运行（YOLO-World 仍 FP16）。
+  同一压力图上 YOLO-World 检出约13个物体、YOLOE 约18个，两条路线检出数不同，对比时不能当作完全相同负载。
+  已完成 60 秒实测：results/world_suite/（01 Teddy 2物体 9.09 FPS、02 密集 13物体 6.34 FPS，927帧已复核）。
+  实测结论与需求1-11逐条对照见 results/world_suite/YOLO-World实测与需求对照.txt（本机3080 Laptop为代理实测，参考显卡RTX5060移动版需另行复测）。
 多物体人工压力图（保留全部检测和全分辨率掩码输出）：
   .\.venv\Scripts\python.exe benchmark.py --mode ranging --parallel-stereo --left data/stress_left.png --right data/stress_right.png --synthetic-pair --mask-processing bounded --seconds 60
 同场景原始慢速掩码实现对照：将上条命令的 bounded 改为 full。

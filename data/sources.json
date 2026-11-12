@@ -29,8 +29,29 @@
     "metadata": "data/stress_source.json",
     "purpose": "Segmentation/mask/JSON compute stress only; NOT physical stereo or accuracy ground truth"
   },
+  "yoloworld_route": {
+    "detection": {
+      "model": "YOLO-World v2 s (yolov8s-worldv2.pt)",
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8s-worldv2.pt",
+      "license": "AGPL-3.0",
+      "note": "Open-vocabulary detection only; outputs real COCO80 class labels after offline preparation"
+    },
+    "segmentation": {
+      "model": "MobileSAM (mobile_sam.pt)",
+      "url": "https://github.com/ultralytics/assets/releases/download/v8.3.0/mobile_sam.pt",
+      "note": "Box-prompted full-resolution masks; one mask per YOLO-World box"
+    },
+    "text_encoder": {
+      "model": "OpenAI CLIP ViT-B/32",
+      "purpose": "One-time offline vocabulary encoding for YOLO-World; excluded from per-frame timing"
+    },
+    "prepared_model": "models/yolov8s-worldv2-coco80.pt",
+    "prepare_script": "prepare_world_model.py"
+  },
   "references": [
     "https://docs.ultralytics.com/models/yoloe/",
+    "https://docs.ultralytics.com/models/yolo-world/",
+    "https://docs.ultralytics.com/models/mobile-sam/",
     "https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html"
   ]
 }

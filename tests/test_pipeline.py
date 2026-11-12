@@ -247,5 +247,57 @@ class DetectorContractTests(unittest.TestCase):
             self.make_detector(result).infer(np.zeros((32,32,3), np.uint8))
 
 
+class WorldSamContractTests(unittest.TestCase):
+    def make_detector(self, boxes, masks, names=None):
+        from types import SimpleNamespace
+        import torch
+        from world_sam import WorldSamDetector
+        detector = WorldSamDetector.__new__(WorldSamDetector)
+        detector.enabled = True
+        detector.device = 'cpu'
+        detector.half = False
+        detector.imgsz = 640
+        detector.sam_half = False
+        detector.torch = torch
+        detector.cfg = {'confidence': .25, 'iou': .5, 'max_detections': 100}
+        det = SimpleNamespace(boxes=SimpleNamespace(data=boxes), names=names or {0: 'cup'})
+        seg = SimpleNamespace(masks=None if masks is None else SimpleNamespace(data=masks))
+        detector.world = SimpleNamespace(predict=lambda *a, **kw: [det])
+        detector.sam = SimpleNamespace(predict=lambda *a, **kw: [seg])
+        return detector
+
+    def test_empty_scene_allowed(self):
+        import torch
+        self.assertEqual(self.make_detector(torch.zeros((0, 6)), None).infer(np.zeros((32, 32, 3), np.uint8)), [])
+
+    def test_success_returns_full_resolution_mask(self):
+        import torch
+        boxes = torch.tensor([[1., 2., 10., 12., .9, 0.]])
+        masks = torch.ones((1, 32, 32), dtype=torch.bool)
+        out = self.make_detector(boxes, masks).infer(np.zeros((32, 32, 3), np.uint8))
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]['cls'], 'cup')
+        self.assertEqual(out[0]['_mask'].shape, (32, 32))
+
+    def test_count_mismatch_rejected(self):
+        import torch
+        boxes = torch.zeros((2, 6))
+        masks = torch.ones((1, 32, 32), dtype=torch.bool)
+        with self.assertRaisesRegex(RuntimeError, 'count or full-resolution'):
+            self.make_detector(boxes, masks).infer(np.zeros((32, 32, 3), np.uint8))
+
+    def test_resolution_mismatch_rejected(self):
+        import torch
+        boxes = torch.zeros((1, 6))
+        masks = torch.ones((1, 16, 16), dtype=torch.bool)
+        with self.assertRaisesRegex(RuntimeError, 'count or full-resolution'):
+            self.make_detector(boxes, masks).infer(np.zeros((32, 32, 3), np.uint8))
+
+    def test_no_masks_for_nonempty_rejected(self):
+        import torch
+        with self.assertRaisesRegex(RuntimeError, 'no masks'):
+            self.make_detector(torch.zeros((1, 6)), None).infer(np.zeros((32, 32, 3), np.uint8))
+
+
 if __name__ == '__main__':
     unittest.main()

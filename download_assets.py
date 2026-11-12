@@ -15,6 +15,8 @@ def main():
         ROOT/'data/teddy_right.png': pair['right_url'],
         ROOT/'models'/weights['filename']: weights['repository']+'/resolve/'+weights['revision']+'/'+weights['filename'],
         ROOT/'models/mobileclip_blt.pt': 'https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_blt.pt',
+        ROOT/'models/yolov8s-worldv2.pt': 'https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8s-worldv2.pt',
+        ROOT/'models/mobile_sam.pt': 'https://github.com/ultralytics/assets/releases/download/v8.3.0/mobile_sam.pt',
     }
     hashes = {}
     for path, url in assets.items():

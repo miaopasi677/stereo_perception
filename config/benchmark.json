@@ -18,5 +18,7 @@
   "torch_threads": 4,
   "filter_frames": 5,
   "mask_format": "rle",
-  "model": "models/yoloe-v8s-coco80.pt"
+  "model": "models/yoloe-v8s-coco80.pt",
+  "world_model": "models/yolov8s-worldv2-coco80.pt",
+  "sam_model": "models/mobile_sam.pt"
 }

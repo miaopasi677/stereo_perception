@@ -70,6 +70,10 @@ def parser():
     p.add_argument("--input-note", default=None, help="Additional explicit dataset/fixture description in report")
     p.add_argument("--mode", choices=["detection", "perception", "ranging"], default="ranging")
     p.add_argument("--model", type=Path)
+    p.add_argument("--detector", choices=["yoloe", "yoloworld"], default="yoloe",
+                   help="yoloe=single-model det+seg; yoloworld=YOLO-World + MobileSAM (plan B)")
+    p.add_argument("--world-model", type=Path, help="Offline YOLO-World checkpoint (yoloworld backend)")
+    p.add_argument("--sam-model", type=Path, help="MobileSAM weights (yoloworld backend)")
     p.add_argument("--calibration", type=Path, help="NPZ: K1,D1,K2,D2,R,T (meters),image_size [W,H]")
     p.add_argument("--imgsz", type=int, choices=[512, 640], default=640)
     p.add_argument("--device", default="0", help="CUDA index or cpu (explicit CPU only)")
@@ -133,17 +137,30 @@ def run(args):
         cfg["mask_format"] = args.mask_format
     cfg["mask_processing"] = args.mask_processing or cfg.get("mask_processing", "bounded")
     source_hashes = {name: hashlib.sha256((ROOT/name).read_bytes()).hexdigest()
-                     for name in ("benchmark.py", "pipeline.py", "sources.py", "metrics.py")}
+                     for name in ("benchmark.py", "pipeline.py", "sources.py", "metrics.py", "world_sam.py")}
     out = args.output or ROOT/"results"/datetime.now().strftime("%Y%m%d_%H%M%S")
     if out.exists() and any(out.iterdir()):
         raise ValueError(f"Output directory must be empty to preserve prior measurements: {out}")
     out.mkdir(parents=True, exist_ok=True)
     (out/"environment.json").write_text(json.dumps(env, ensure_ascii=False, indent=2), encoding="utf-8")
-    model_path = args.model or ROOT/cfg["model"]
-    if not args.no_detector and not model_path.is_file():
-        raise FileNotFoundError(f"Download model first: {model_path}")
+    sam_path = sam_hash = None
+    if args.detector == "yoloworld":
+        model_path = args.world_model or ROOT/cfg.get("world_model", "models/yolov8s-worldv2-coco80.pt")
+        sam_path = args.sam_model or ROOT/cfg.get("sam_model", "models/mobile_sam.pt")
+        if not args.no_detector:
+            for path in (model_path, sam_path):
+                if not path.is_file():
+                    raise FileNotFoundError(f"Download/prepare model first: {path}")
+            sam_hash = hashlib.sha256(sam_path.read_bytes()).hexdigest()
+        from world_sam import WorldSamDetector
+        detector = WorldSamDetector(cfg, model_path, sam_path, args.imgsz, args.device,
+                                    not args.fp32, not args.no_detector)
+    else:
+        model_path = args.model or ROOT/cfg["model"]
+        if not args.no_detector and not model_path.is_file():
+            raise FileNotFoundError(f"Download model first: {model_path}")
+        detector = Detector(cfg, model_path, args.imgsz, args.device, not args.fp32, not args.no_detector)
     model_hash = hashlib.sha256(model_path.read_bytes()).hexdigest() if not args.no_detector else None
-    detector = Detector(cfg, model_path, args.imgsz, args.device, not args.fp32, not args.no_detector)
     source = None
     pipe = None
     telemetry = Telemetry()
@@ -289,6 +306,8 @@ def run(args):
         scope.append("Three target workloads are synthetic ROI partitions; NOT three recognized or physically verified targets.")
     if args.no_detector:
         scope.append("DETECTOR DISABLED: geometry-only smoke test; full pipeline FPS requirement not tested.")
+    if args.detector == "yoloworld":
+        scope.append("Plan B: YOLO-World detection + separate MobileSAM segmentation; both stages timed inside detect_segment_wall.")
     if args.mode == "detection":
         scope.append("Stereo/ranging disabled: detection+segmentation workload only.")
     if records and not any(r["object_count"] for r in records):
@@ -296,7 +315,8 @@ def run(args):
     if mode_changes:
         scope.append("Control commands changed ranging during measurement: this is a MIXED workload, not a single-mode FPS result.")
     metadata = {"hardware": env, "input": source.metadata if source else {"type": args.source},
-                "implementation": {"detector": detector.description, "stereo": "OpenCV CPU SGBM 3WAY",
+                "implementation": {"detector": detector.description, "detector_backend": args.detector,
+                                   "stereo": "OpenCV CPU SGBM 3WAY",
                                    "rectification": "OpenCV CPU remap", "parallel_stereo": args.parallel_stereo,
                                    "mask_processing": cfg["mask_processing"]},
                 "source_sha256": source_hashes,
@@ -306,7 +326,8 @@ def run(args):
                 "ranging_frames_measured": sum(r["ranging_enabled"] for r in records),
                 "object_workload_observed": any(r["object_count"] > 0 for r in records),
                 "model_input_shape": [1, 3, args.imgsz, args.imgsz], "model": str(model_path),
-                "model_sha256": model_hash, "vocabulary": getattr(detector, "vocabulary", None),
+                "model_sha256": model_hash, "sam_model": str(sam_path) if sam_path else None,
+                "sam_sha256": sam_hash, "vocabulary": getattr(detector, "vocabulary", None),
                 "scope_limitations": scope, "warmup_frames": args.warmup,
                 "requested_seconds": args.seconds, "stress_three": args.stress_three,
                 "detector_enabled": not args.no_detector, "error": error, "interrupted": interrupted,
